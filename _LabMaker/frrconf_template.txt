@@ -1,0 +1,11 @@
+!
+! FRRouting configuration file
+!
+!
+!  RIP CONFIGURATION
+!
+router rip
+redistribute connected
+network 150.0.0.0/8
+!
+log file /var/log/frr/frr.log
