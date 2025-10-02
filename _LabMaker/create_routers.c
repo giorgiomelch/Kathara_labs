@@ -87,6 +87,28 @@ void crea_files_frr(const char *path_frr) {
     fclose(src_daemons);
     fclose(fp);
 }
+void crea_lab_conf(const char *path_dir, char router_names[][MAXLEN], int router_count) {
+    char lab_conf_path[MAXLEN * 3];
+    snprintf(lab_conf_path, sizeof(lab_conf_path), "%s/lab.conf", path_dir);
+
+    FILE *lab_fp = fopen(lab_conf_path, "w");
+    if (!lab_fp) {
+        perror("Errore creando lab.conf");
+        return;
+    }
+
+    for (int i = 0; i < router_count; i++) {
+        // Riga [0] e [1] basata sulla sequenza dei router
+        // ad esempio r1[0]=r1, r1[1]=r2, r2[0]=r2, r2[1]=r3, ecc.
+        const char *next_router = (i + 1 < router_count) ? router_names[i + 1] : "Z";
+
+        fprintf(lab_fp, "%s[0]=\"%s\"\n", router_names[i], router_names[i]); // [0] = stesso router
+        fprintf(lab_fp, "%s[1]=\"%s\"\n", router_names[i], next_router);    // [1] = router successivo
+        fprintf(lab_fp, "%s[image]=\"kathara/frr\"\n\n", router_names[i]);
+    }
+
+    fclose(lab_fp);
+}
 
 
 
@@ -94,6 +116,8 @@ int main() {
     char directory[MAXLEN];
     char nome[MAXLEN];
     char path_frr[512];
+    char router_names[50][MAXLEN]; //massimo 50 routers
+    int router_count = 0;
 
     printf("CREAZIONE ROUTERS:\n");
     printf("Scegliere la cartella di destinazione:\n");
@@ -114,6 +138,8 @@ int main() {
         if (fgets(nome, sizeof(nome), stdin) == NULL) break;
         rimuovi_newline(nome);
         if (strlen(nome) == 0) break;
+        strncpy(router_names[router_count], nome, MAXLEN);
+        router_count++;
 
         char filename[MAXLEN * 3];
         snprintf(filename, sizeof(filename), "%s/%s.startup", path2directory, nome);
@@ -126,6 +152,8 @@ int main() {
         create_router_startup(fp);
         crea_struttura_router(path2directory, nome, path_frr);
         crea_files_frr(path_frr);
+        crea_lab_conf(path2directory, router_names, router_count);
+
         fclose(fp);
 
         printf("  -- File %s creato con successo.\n", filename);
