@@ -96,17 +96,13 @@ void crea_lab_conf(const char *path_dir, char router_names[][MAXLEN], int router
         perror("Errore creando lab.conf");
         return;
     }
-
     for (int i = 0; i < router_count; i++) {
-        // Riga [0] e [1] basata sulla sequenza dei router
-        // ad esempio r1[0]=r1, r1[1]=r2, r2[0]=r2, r2[1]=r3, ecc.
-        const char *next_router = (i + 1 < router_count) ? router_names[i + 1] : "Z";
-
-        fprintf(lab_fp, "%s[0]=\"%s\"\n", router_names[i], router_names[i]); // [0] = stesso router
-        fprintf(lab_fp, "%s[1]=\"%s\"\n", router_names[i], next_router);    // [1] = router successivo
+        fprintf(lab_fp, "%s[0]=\"MODIFICA\"\n", router_names[i]);
+        fprintf(lab_fp, "%s[1]=\"MODIFICA\"\n", router_names[i]);
+        fprintf(lab_fp, "%s[2]=\"MODIFICA\"\n", router_names[i]);
+        fprintf(lab_fp, "%s[3]=\"MODIFICA\"\n", router_names[i]);
         fprintf(lab_fp, "%s[image]=\"kathara/frr\"\n\n", router_names[i]);
     }
-
     fclose(lab_fp);
 }
 
