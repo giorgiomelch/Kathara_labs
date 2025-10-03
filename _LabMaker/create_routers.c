@@ -17,7 +17,7 @@ int create_directory(const char *path) {
 }
 
 void create_router_startup(FILE *fp){
-    fprintf(fp, "ip address add !100.0.0.1/24 dev eth0\n\nsystemctl start frr");
+    fprintf(fp, "ip address add 100.0.0.1/24 dev eth0\n\nsystemctl start frr");
 }
 // Restituisce il percorso completo della cartella frr
 int crea_struttura_router(const char *cartella_padre, const char *nome_router, char *path_frr) {
