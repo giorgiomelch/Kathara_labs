@@ -153,7 +153,58 @@ int abilita_daemons(const char *file_daemons, IntraRoutingMode mode) {
     return 0;
 }
 
-int crea_files_frr(const char *path_frr, IntraRoutingMode mode) {
+void chiedi_OSPF_area_and_subnet(char *ospf_area, size_t area_len, char *ospf_subnet, size_t subnet_len) {
+    printf("Inserisci area OSPF (es. 0.0.0.0 per backbone, x.x.x.x per stub): ");
+    fgets(ospf_area, area_len, stdin);
+    rimuovi_newline(ospf_area);
+
+    printf("Inserisci subnet associata (es. 192.168.1.0/24): ");
+    fgets(ospf_subnet, subnet_len, stdin);
+    rimuovi_newline(ospf_subnet);
+}
+
+int configura_ospf_conf(const char *file_frr_conf, const char *area, const char *subnet) {
+    char temp_file[PATH_MAXLEN];
+    char line[BUFFER_SIZE];
+
+    snprintf(temp_file, sizeof(temp_file), "%s.tmp", file_frr_conf);
+
+    FILE *src = fopen(file_frr_conf, "r");
+    if (!src) {
+        fprintf(stderr, "Errore aprendo file '%s': %s\n", file_frr_conf, strerror(errno));
+        return -1;
+    }
+
+    FILE *dst = fopen(temp_file, "w");
+    if (!dst) {
+        fprintf(stderr, "Errore creando file temporaneo '%s': %s\n", temp_file, strerror(errno));
+        fclose(src);
+        return -1;
+    }
+
+    while (fgets(line, sizeof(line), src)) {
+        if (strstr(line, "network MODIFICA/ANCHEQUA area EQUA")) {
+            fprintf(dst, "network %s area %s\n", subnet, area);
+            if (strcmp(area, "0.0.0.0") != 0)
+                fprintf(dst, "area %s stub\n", area);
+        } else {
+            fputs(line, dst);
+        }
+    }
+
+    fclose(src);
+    fclose(dst);
+
+    if (remove(file_frr_conf) != 0 || rename(temp_file, file_frr_conf) != 0) {
+        fprintf(stderr, "Errore sovrascrivendo file '%s'\n", file_frr_conf);
+        return -1;
+    }
+
+    printf("Configurazione OSPF aggiornata con subnet %s e area %s.\n", subnet, area);
+    return 0;
+}
+
+int crea_files_frr(const char *path_frr, IntraRoutingMode mode, const char *area, const char *subnet) {
     char file_frr_conf[PATH_MAXLEN];
     char file_daemons[PATH_MAXLEN];
     char template_frr_conf[PATH_MAXLEN];
@@ -167,14 +218,12 @@ int crea_files_frr(const char *path_frr, IntraRoutingMode mode) {
 
     if (copia_file(template_frr_conf, file_frr_conf) != 0) return -1;
     if (copia_file(template_daemons, file_daemons) != 0) return -1;
-    if (abilita_daemons(file_daemons, mode) != 0) {
-        fprintf(stderr, "Errore abilitando demone di routing nel file daemons\n");
-        return -1;
-    }
+    if (abilita_daemons(file_daemons, mode) != 0) return -1;
 
+    if (mode == OSPF && area && subnet)
+        return configura_ospf_conf(file_frr_conf, area, subnet);
     return 0;
 }
-
 
 int crea_lab_conf(const char *path_dir, char router_names[][PATH_MAXLEN], int router_count) {
     char lab_conf_path[PATH_MAXLEN];
@@ -247,6 +296,11 @@ int main(void) {
 
     IntraRoutingMode mode = chiedi_modalita_intrarouting();
 
+    char ospf_area[64] = "";
+    char ospf_subnet[64] = "";
+    if (mode==OSPF)
+        chiedi_OSPF_area_and_subnet(ospf_area, sizeof(ospf_area), ospf_subnet, sizeof(ospf_subnet));
+
     while (1) {
         printf("\nNome router (vuoto per terminare): ");
         fgets(nome_router, sizeof(nome_router), stdin);
@@ -267,8 +321,9 @@ int main(void) {
         scrivi_startup(fp);
         fclose(fp);
         // Struttura e configurazioni FRR
-        if (crea_struttura_router(abs_path, nome_router, path_frr, sizeof(path_frr)) == 0)
-            crea_files_frr(path_frr, mode);
+        if (crea_struttura_router(abs_path, nome_router, path_frr, sizeof(path_frr)) == 0){
+            crea_files_frr(path_frr, mode, ospf_area, ospf_subnet);
+        }
 
         printf("Router '%s' creato correttamente.\n", nome_router);
     }
