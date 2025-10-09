@@ -6,10 +6,8 @@
 !
 !
 ! Default cost for exiting an interface is 10
-interface eth0
-	ospf cost 10
-interface eth1
-	ospf cost 10
+!interface eth0
+!	ospf cost 10
 !
 router ospf
 ! Speak OSPF on all interfaces falling in the listed subnets
