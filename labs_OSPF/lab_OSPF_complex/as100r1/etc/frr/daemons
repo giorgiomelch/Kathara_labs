@@ -1,5 +1,5 @@
 bgpd=yes
-ospfd=yes
+ospfd=no
 spf6d=no
 ripd=no
 ripngd=no
