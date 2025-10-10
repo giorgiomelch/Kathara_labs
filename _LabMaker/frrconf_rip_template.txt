@@ -4,8 +4,11 @@
 !
 !  RIP CONFIGURATION
 !
+
+!talk rip on some interface
 router rip
-!NECESSARIO? redistribute connected
+!send rip multicast packets to interfaces falling into this prefix
 network MODIFICARE
+!NECESSARIO? redistribute connected
 !
 log file /var/log/frr/frr.log
