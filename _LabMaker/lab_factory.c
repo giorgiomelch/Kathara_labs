@@ -98,7 +98,7 @@ int crea_directory_ricorsiva(const char *path) {
 void scrivi_startup(FILE *fp, IntraRoutingMode mode) {
     if (mode == STATIC) {
         fprintf(fp, "ip address add MODIFICA.0.0.1/MODIFICA dev eth0\n");
-        fprintf(fp, "ip route add default via MODIFICANOBARRA dev eth1\n");
+        fprintf(fp, "ip route add default via MODIFICANOBARRA dev eth0\n");
         return;
     }
     else{
@@ -314,7 +314,7 @@ int crea_lab_conf(const char *path_dir, char router_names[][PATH_MAXLEN], int ro
 
     // Scrive i nuovi router
     for (int i = 0; i < router_count; i++) {
-        fprintf(lab_fp, "%s[0]=\"MODIFICA\"\n", router_names[i]);
+        fprintf(lab_fp, "%s[0]=\"MODIFICA\"\n\n", router_names[i]);
         if (mode != STATIC){
             fprintf(lab_fp, "%s[1]=\"MODIFICA\"\n", router_names[i]);
             fprintf(lab_fp, "%s[2]=\"MODIFICA\"\n", router_names[i]);
