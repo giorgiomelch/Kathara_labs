@@ -12,11 +12,13 @@
 #define BUFFER_SIZE 2048       // buffer generico per copia file
 // --- ENUM e costanti simboliche ---
 typedef enum {
-    RIP = 0,
-    OSPF = 1
+    STATIC = 0,
+    RIP = 1,
+    OSPF = 2
 } IntraRoutingMode;
 
-static const char *INTRA_ROUTING_NAMES[] = { "rip", "ospf" };
+static const char *INTRA_ROUTING_NAMES[] = { "static", "rip", "ospf" };
+
 
 // --- Utility Functions ---
 
@@ -93,10 +95,17 @@ int crea_directory_ricorsiva(const char *path) {
 
 // --- Moduli di configurazione router ---
 
-void scrivi_startup(FILE *fp) {
-    fprintf(fp, "ip address add MODIFICA.0.0.1/MODIFICA dev eth0\n");
-    fprintf(fp, "ip address add MODIFICA.0.0.1/MODIFICA dev eth1\n\n");
-    fprintf(fp, "systemctl start frr\n");
+void scrivi_startup(FILE *fp, IntraRoutingMode mode) {
+    if (mode == STATIC) {
+        fprintf(fp, "ip address add MODIFICA.0.0.1/MODIFICA dev eth0\n");
+        fprintf(fp, "ip route add default via MODIFICANOBARRA dev eth1\n");
+        return;
+    }
+    else{
+        fprintf(fp, "ip address add MODIFICA.0.0.1/MODIFICA dev eth0\n");
+        fprintf(fp, "ip address add MODIFICA.0.0.1/MODIFICA dev eth1\n\n");
+        fprintf(fp, "systemctl start frr\n");
+    }
 }
 
 int crea_struttura_router(const char *cartella_padre, const char *nome_router, char *path_frr, size_t len) {
@@ -162,6 +171,59 @@ void chiedi_OSPF_area_and_subnet(char *ospf_area, size_t area_len, char *ospf_su
     fgets(ospf_subnet, subnet_len, stdin);
     rimuovi_newline(ospf_subnet);
 }
+void chiedi_RIP_network(char *rip_network, size_t len) {
+    printf("Inserisci la network dove parlare RIP (es. 192.168.1.0/24): ");
+    fgets(rip_network, len, stdin);
+    rimuovi_newline(rip_network);
+}
+
+int configura_rip_conf(const char *file_frr_conf, const char *network) {
+    char temp_file[PATH_MAXLEN];
+    char line[BUFFER_SIZE];
+
+    snprintf(temp_file, sizeof(temp_file), "%s.tmp", file_frr_conf);
+
+    FILE *src = fopen(file_frr_conf, "r");
+    if (!src) {
+        fprintf(stderr, "Errore aprendo file '%s': %s\n", file_frr_conf, strerror(errno));
+        return -1;
+    }
+
+    FILE *dst = fopen(temp_file, "w");
+    if (!dst) {
+        fprintf(stderr, "Errore creando file temporaneo '%s': %s\n", temp_file, strerror(errno));
+        fclose(src);
+        return -1;
+    }
+
+    while (fgets(line, sizeof(line), src)) {
+        if (strstr(line, "MODIFICARE")) {
+            // Sostituisce la stringa MODIFICARE con la network inserita
+            char nuova_linea[BUFFER_SIZE];
+            char *pos = strstr(line, "MODIFICARE");
+            if (pos) {
+                *pos = '\0';
+                snprintf(nuova_linea, sizeof(nuova_linea), "%s%s%s", line, network, pos + strlen("MODIFICARE"));
+                fputs(nuova_linea, dst);
+            } else {
+                fputs(line, dst);
+            }
+        } else {
+            fputs(line, dst);
+        }
+    }
+
+    fclose(src);
+    fclose(dst);
+
+    if (remove(file_frr_conf) != 0 || rename(temp_file, file_frr_conf) != 0) {
+        fprintf(stderr, "Errore sovrascrivendo file '%s'\n", file_frr_conf);
+        return -1;
+    }
+
+    printf("Configurazione RIP aggiornata con network %s.\n", network);
+    return 0;
+}
 
 int configura_ospf_conf(const char *file_frr_conf, const char *area, const char *subnet) {
     char temp_file[PATH_MAXLEN];
@@ -205,6 +267,10 @@ int configura_ospf_conf(const char *file_frr_conf, const char *area, const char 
 }
 
 int crea_files_frr(const char *path_frr, IntraRoutingMode mode, const char *area, const char *subnet) {
+    if (mode == STATIC) {
+        printf("Modalità STATIC: nessun file FRR da creare.\n");
+        return 0;
+    }
     char file_frr_conf[PATH_MAXLEN];
     char file_daemons[PATH_MAXLEN];
     char template_frr_conf[PATH_MAXLEN];
@@ -220,12 +286,14 @@ int crea_files_frr(const char *path_frr, IntraRoutingMode mode, const char *area
     if (copia_file(template_daemons, file_daemons) != 0) return -1;
     if (abilita_daemons(file_daemons, mode) != 0) return -1;
 
+    if (mode == RIP && subnet) 
+        return configura_rip_conf(file_frr_conf, subnet);
     if (mode == OSPF && area && subnet)
         return configura_ospf_conf(file_frr_conf, area, subnet);
     return 0;
 }
 
-int crea_lab_conf(const char *path_dir, char router_names[][PATH_MAXLEN], int router_count) {
+int crea_lab_conf(const char *path_dir, char router_names[][PATH_MAXLEN], int router_count, IntraRoutingMode mode) {
     char lab_conf_path[PATH_MAXLEN];
     snprintf(lab_conf_path, sizeof(lab_conf_path), "%s/lab.conf", path_dir);
 
@@ -240,16 +308,18 @@ int crea_lab_conf(const char *path_dir, char router_names[][PATH_MAXLEN], int ro
     }
 
     if (esiste)
-        printf("File lab.conf esistente, aggiunta nuovi router...\n");
+        printf("File lab.conf esistente, aggiunta nuove macchine...\n");
     else
         printf("Creazione nuovo file lab.conf...\n");
 
     // Scrive i nuovi router
     for (int i = 0; i < router_count; i++) {
         fprintf(lab_fp, "%s[0]=\"MODIFICA\"\n", router_names[i]);
-        fprintf(lab_fp, "%s[1]=\"MODIFICA\"\n", router_names[i]);
-        fprintf(lab_fp, "%s[2]=\"MODIFICA\"\n", router_names[i]);
-        fprintf(lab_fp, "%s[image]=\"kathara/frr\"\n\n", router_names[i]);
+        if (mode != STATIC){
+            fprintf(lab_fp, "%s[1]=\"MODIFICA\"\n", router_names[i]);
+            fprintf(lab_fp, "%s[2]=\"MODIFICA\"\n", router_names[i]);
+            fprintf(lab_fp, "%s[image]=\"kathara/frr\"\n\n", router_names[i]);
+        }
     }
 
     fclose(lab_fp);
@@ -261,19 +331,22 @@ int crea_lab_conf(const char *path_dir, char router_names[][PATH_MAXLEN], int ro
 int chiedi_modalita_intrarouting(void) {
     int scelta = -1;
     do {
-        printf("Scegli il protocollo di intrarouting:\n");
-        printf("  0 -> RIP\n  1 -> OSPF\nScelta: ");
-        if (scanf("%d", &scelta) != 1 || scelta < 0 || scelta > 1) {
+        printf("Scegli il tipo di configurazione di routing:\n");
+        printf("  0 -> STATIC (solo rotte statiche)\n");
+        printf("  1 -> RIP\n");
+        printf("  2 -> OSPF\n");
+        printf("Scelta: ");
+        if (scanf("%d", &scelta) != 1 || scelta < 0 || scelta > 2) {
             fprintf(stderr, "Scelta non valida. Riprova.\n");
-            while (getchar() != '\n'); // pulisce buffer input
+            while (getchar() != '\n');
             scelta = -1;
-        }
-         else {
-            while (getchar() != '\n'); // consuma il newline lasciato da scanf
+        } else {
+            while (getchar() != '\n');
         }
     } while (scelta == -1);
     return scelta;
 }
+
 
 // --- MAIN PROGRAM ---
 
@@ -296,13 +369,18 @@ int main(void) {
 
     IntraRoutingMode mode = chiedi_modalita_intrarouting();
 
+    char rip_network[64] = "";
     char ospf_area[64] = "";
     char ospf_subnet[64] = "";
-    if (mode==OSPF)
+
+    if (mode == RIP) {
+        chiedi_RIP_network(rip_network, sizeof(rip_network));
+    } else if (mode == OSPF) {
         chiedi_OSPF_area_and_subnet(ospf_area, sizeof(ospf_area), ospf_subnet, sizeof(ospf_subnet));
+    }
 
     while (1) {
-        printf("\nNome router (vuoto per terminare): ");
+        printf("\nNome macchina (vuoto per terminare): ");
         fgets(nome_router, sizeof(nome_router), stdin);
         rimuovi_newline(nome_router);
         if (strlen(nome_router) == 0) break;
@@ -318,17 +396,23 @@ int main(void) {
             fprintf(stderr, "Errore creando file startup per '%s'\n", nome_router);
             continue;
         }
-        scrivi_startup(fp);
+        scrivi_startup(fp, mode);
         fclose(fp);
-        // Struttura e configurazioni FRR
-        if (crea_struttura_router(abs_path, nome_router, path_frr, sizeof(path_frr)) == 0){
-            crea_files_frr(path_frr, mode, ospf_area, ospf_subnet);
+        if (mode != STATIC) {
+            // crea la struttura FRR solo per RIP o OSPF
+            if (crea_struttura_router(abs_path, nome_router, path_frr, sizeof(path_frr)) == 0) {
+                crea_files_frr(path_frr, mode,
+                            (mode == OSPF) ? ospf_area : NULL,
+                            (mode == OSPF) ? ospf_subnet : rip_network);
+            }
+        } else {
+            printf("Modalità STATIC: salto la creazione dei file FRR per '%s'.\n", nome_router);
         }
 
-        printf("Router '%s' creato correttamente.\n", nome_router);
+        printf("Macchina '%s' creata correttamente.\n", nome_router);
     }
 
-    crea_lab_conf(abs_path, router_names, router_count);
+    crea_lab_conf(abs_path, router_names, router_count, mode);
     printf("\nConfigurazione laboratorio completata con %d router.\n", router_count);
 
     return 0;
