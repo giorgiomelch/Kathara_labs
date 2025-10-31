@@ -1,0 +1,11 @@
+!  BGP CONFIGURATION
+!
+router bgp MODIFICA
+	!no bgp ebgp-requires-policy
+	!no bgp network import-check
+    neighbor MODIFICA.10.11.1 remote-as MODIFICA
+    neighbor MODIFICA.10.11.1 description Router 2 of AS MODIFICA
+    !
+    network MODIFICA/MODIFICA
+!
+log file /var/log/frr/frr.log
