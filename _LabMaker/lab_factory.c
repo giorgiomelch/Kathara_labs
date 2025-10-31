@@ -314,7 +314,7 @@ int crea_lab_conf(const char *path_dir, char router_names[][PATH_MAXLEN], int ro
 
     // Scrive i nuovi router
     for (int i = 0; i < router_count; i++) {
-        fprintf(lab_fp, "%s[0]=\"MODIFICA\"\n\n", router_names[i]);
+        fprintf(lab_fp, "%s[0]=\"MODIFICA\"\n", router_names[i]);
         if (mode != STATIC){
             fprintf(lab_fp, "%s[1]=\"MODIFICA\"\n", router_names[i]);
             fprintf(lab_fp, "%s[2]=\"MODIFICA\"\n", router_names[i]);
