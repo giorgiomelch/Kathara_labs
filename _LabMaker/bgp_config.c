@@ -214,8 +214,9 @@ void configura_macchina(
         copy_template_to_frrconf(frr_template_full, frrconf_path);
 
         // Aggiorna lab.conf con la riga [machine_name][image]=kathara/frr
-        snprintf(labconf_path, sizeof(labconf_path), "%s/lab.conf", original_dir);
-        snprintf(line_to_append, sizeof(line_to_append), "[%s][image]=kathara/frr", machine_name);
+        snprintf(labconf_path, sizeof(labconf_path), "lab.conf");
+        printf("Aggiorno lab.conf: %s\n", labconf_path);
+        snprintf(line_to_append, sizeof(line_to_append), "%s[image]=\"kathara/frr\"", machine_name);
         append_line_to_file(labconf_path, line_to_append);
 
         // Aggiorna machine_name.startup con systemctl start frr
