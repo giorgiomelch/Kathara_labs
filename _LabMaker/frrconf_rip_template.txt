@@ -7,6 +7,7 @@
 router rip
 !send rip multicast packets to interfaces falling into this prefix
 network MODIFICARE
-!NECESSARIO? redistribute connected
+!redistribute bgp
+!redistribute connected
 !
 log file /var/log/frr/frr.log
