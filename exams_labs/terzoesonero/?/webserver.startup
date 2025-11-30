@@ -1,0 +1,4 @@
+ip address add 100.9.2.2/24 dev eth0
+ip route add default via 100.9.2.1 dev eth0
+
+systemctl start apache2
